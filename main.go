@@ -44,6 +44,8 @@ func updateDeviceAttr(deviceName string, attrName string, value string) {
 				break
 			}
 		}
+	} else {
+		ok = false
 	}
 
 	if !ok {
