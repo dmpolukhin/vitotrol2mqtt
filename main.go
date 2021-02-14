@@ -21,11 +21,11 @@ var customAttrRegEx = regexp.MustCompile(
 	`^([a-zA-Z0-9_]+)[-_]0x([a-fA-F0-9]{1,4})\z`)
 
 func updateDeviceAttr(deviceName string, attrName string, value string) {
+	attrId, ok := vitotrol.AttributesNames2IDs[attrName]
 
-	attrId := vitotrol.AttributesNames2IDs[attrName]
-
-	if vitotrol.AttributesRef[attrId].Access == vitotrol.ReadWrite {
+	if ok && vitotrol.AttributesRef[attrId].Access == vitotrol.ReadWrite {
 		fmt.Println(fmt.Sprintf("Setting %s to %s", attrName, value))
+		ok = false
 		for _, vdev := range pVitotrol.Devices {
 			if vdev.DeviceName == deviceName {
 				ch, err := vdev.WriteDataWait(pVitotrol, attrId, value)
@@ -40,16 +40,20 @@ func updateDeviceAttr(deviceName string, attrName string, value string) {
 				// update MQTT with the new value
 				token := mqttClient.Publish(pConf.MQTT.Topic+"/"+vdev.DeviceName+"/"+attrName, 0, true, value)
 				token.Wait()
+				ok = true
+				break
 			}
 		}
-	} else {
-		fmt.Println(fmt.Sprintf("Cannot set readonly attribute %s to %s", attrName, value))
+	}
+
+	if !ok {
+		fmt.Println(fmt.Sprintf("Device %s: cannot set attribute %s to %s", deviceName, attrName, value))
 	}
 }
 
 var messagePubHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
 	if pConf != nil {
-		var topicRegEx = regexp.MustCompile(pConf.MQTT.Topic + `\/(.*?)\/(.*?)\/set`)
+		var topicRegEx = regexp.MustCompile(pConf.MQTT.Topic + `\/(.*?)\/([^/]*?)\/set`)
 		m := topicRegEx.FindStringSubmatch(msg.Topic())
 
 		if m != nil {
@@ -222,7 +226,7 @@ func resolveFields() {
 
 func initializeMQTTClient() {
 	opts := mqtt.NewClientOptions()
-	opts.AddBroker("tcp://192.168.3.250:1883")
+	opts.AddBroker("tcp://" + pConf.MQTT.Broker + ":" + pConf.MQTT.Port)
 	opts.SetClientID(pConf.MQTT.ClientID)
 	opts.SetUsername(pConf.MQTT.Login)
 	opts.SetPassword(pConf.MQTT.Password)
