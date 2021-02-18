@@ -1,5 +1,11 @@
-FROM golang:1.15
+FROM golang:1.15 AS builder
 
-RUN go get -u github.com/benvanmierloo/vitotrol2mqtt 
+RUN go get -u github.com/benvanmierloo/vitotrol2mqtt
 
-ENTRYPOINT ["vitotrol2mqtt", "-config", "/root/go/vitotrol2mqtt.yml"]
+FROM arm32v7/ubuntu
+
+RUN apt update && apt install -y ca-certificates
+
+COPY --from=builder /go/bin/vitotrol2mqtt /vitotrol2mqtt
+
+ENTRYPOINT ["/vitotrol2mqtt", "-config", "/vitotrol2mqtt.yml"]
