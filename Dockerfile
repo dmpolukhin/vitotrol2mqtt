@@ -1,10 +1,10 @@
 FROM golang:1.15 AS builder
 
-RUN go get -u github.com/benvanmierloo/vitotrol2mqtt
+RUN go get -u github.com/dmpolukhin/vitotrol2mqtt
 
-FROM arm32v7/ubuntu
+FROM alpine:3.13.2
 
-RUN apt update && apt install -y ca-certificates
+RUN env CGO_ENABLED=0 GOOS=linux go build -a -tags netgo -ldflags '-w -extldflags "-static"'
 
 COPY --from=builder /go/bin/vitotrol2mqtt /vitotrol2mqtt
 

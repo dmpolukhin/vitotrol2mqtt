@@ -38,7 +38,7 @@ func updateDeviceAttr(deviceName string, attrName string, value string) {
 					os.Exit(1)
 				}
 				// update MQTT with the new value
-				token := mqttClient.Publish(pConf.MQTT.Topic+"/"+vdev.DeviceName+"/"+attrName, 0, true, value)
+				token := mqttClient.Publish(pConf.MQTT.Topic+"/"+vdev.DeviceName+"/"+attrName, 0, false, value)
 				token.Wait()
 				ok = true
 				break
@@ -140,7 +140,7 @@ func refreshDevice(device *vitotrol.Device, attrs []vitotrol.AttrID) bool {
 	values, _ := json.Marshal(fields)
 	fmt.Sprintln("%", values)
 	for key, element := range fields {
-		token := mqttClient.Publish(pConf.MQTT.Topic+"/"+device.DeviceName+"/"+key, 0, true, fmt.Sprint(element))
+		token := mqttClient.Publish(pConf.MQTT.Topic+"/"+device.DeviceName+"/"+key, 0, false, fmt.Sprint(element))
 		token.Wait()
 	}
 
@@ -148,14 +148,25 @@ func refreshDevice(device *vitotrol.Device, attrs []vitotrol.AttrID) bool {
 }
 
 func refreshDevices() {
-	for _, device := range pVitotrol.Devices {
-		// Check if this device has a configuration
-		deviceConfig := pConf.GetConfigDevice(device.DeviceName, device.LocationName)
-		if device.IsConnected && deviceConfig != nil {
-			refreshDevice(&device, deviceConfig.attrs)
+	for {
+		start := time.Now()
+		for _, device := range pVitotrol.Devices {
+			// Check if this device has a configuration
+			deviceConfig := pConf.GetConfigDevice(device.DeviceName, device.LocationName)
+			if deviceConfig != nil {
+				if device.IsConnected {
+					refreshDevice(&device, deviceConfig.attrs)
+				} else {
+					// Device is not connect - retry.
+					fmt.Fprintf(os.Stderr, "Device is not connected `%s'\n", device.DeviceName);
+					os.Exit(1)
+				}
+			}
 		}
-		time.Sleep(time.Duration(pConf.Vitotrol.Frequency) * time.Second)
-
+		delta := time.Duration(pConf.Vitotrol.Frequency) * time.Second - time.Now().Sub(start)
+		if delta > 0 {
+			time.Sleep(delta)
+		}
 	}
 }
 
